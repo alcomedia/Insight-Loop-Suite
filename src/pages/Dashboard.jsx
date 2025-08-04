@@ -1,4 +1,4 @@
-import React from 'react'
+ import React from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Play, Brain, ArrowRight, Zap, Target, BarChart3, Users, MessageSquare, TrendingUp, Search, Lightbulb, Rocket } from 'lucide-react'
@@ -19,9 +19,9 @@ const Dashboard = () => {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-12"
+        className="text-center mb-16"
       >
-        <h1 className="text-5xl font-bold gradient-text mb-4">
+        <h1 className="text-5xl font-bold gradient-text mb-6">
           Insight Loop Suite
         </h1>
         <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">

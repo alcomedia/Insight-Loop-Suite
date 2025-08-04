@@ -16,12 +16,12 @@ const Layout = ({ children }) => {
   ]
 
   return (
-    <div className="min-h-screen flex">
+    <div className="h-screen flex overflow-hidden">
       {/* Sidebar */}
       <motion.aside 
         initial={{ x: -100, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        className="w-64 glass-effect border-r border-white/20 p-6"
+        className="w-64 glass-effect border-r border-white/20 p-6 flex-shrink-0"
       >
         <div className="mb-16">
           <Link to="/" className="flex items-center space-x-3">
@@ -56,7 +56,7 @@ const Layout = ({ children }) => {
       </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 h-full overflow-hidden">
         {children}
       </main>
     </div>

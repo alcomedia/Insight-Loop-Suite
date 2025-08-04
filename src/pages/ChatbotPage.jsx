@@ -6,7 +6,7 @@ import { useChatbot } from '../context/ChatbotContext'
 
 const ChatbotPage = () => {
   const { id } = useParams()
-  const { sendMessage, isLoading } = useChatbot()
+  const { sendMessage, isLoading, getWelcomeMessage } = useChatbot()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const messagesEndRef = useRef(null)
@@ -29,14 +29,14 @@ const ChatbotPage = () => {
   }, [messages])
 
   useEffect(() => {
-    // Welcome message
+    // Welcome message using the actual chatbot's default message
     setMessages([{
       id: Date.now(),
       type: 'bot',
-      content: `Hello! I'm ${chatbotNames[id]}. How can I help you today?`,
+      content: `Hello! I'm ${chatbotNames[id]}. ${getWelcomeMessage(id)}`,
       timestamp: new Date()
     }])
-  }, [id])
+  }, [id, getWelcomeMessage])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -74,11 +74,10 @@ const ChatbotPage = () => {
 
   return (
     <div className="h-screen flex flex-col">
-      {/* Header */}
       <motion.header 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-effect border-b border-white/20 p-4"
+        className="glass-effect border-b border-white/20 p-4 z-10"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -103,78 +102,74 @@ const ChatbotPage = () => {
         </div>
       </motion.header>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {messages.map((message) => (
-          <motion.div
-            key={message.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div className={`flex items-start space-x-3 max-w-2xl ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                message.type === 'user' 
-                  ? 'bg-primary-500' 
-                  : 'bg-gradient-to-br from-purple-500 to-violet-500'
-              }`}>
-                {message.type === 'user' ? (
-                  <User className="w-4 h-4 text-white" />
-                ) : (
-                  <Bot className="w-4 h-4 text-white" />
-                )}
-              </div>
-              
-              <div className={`chat-bubble ${
-                message.type === 'user' ? 'chat-bubble-user' : 'chat-bubble-bot'
-              }`}>
-                <p className="whitespace-pre-wrap">{message.content}</p>
-                <p className={`text-xs mt-2 ${
-                  message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
+      <div className="flex-1 overflow-y-auto p-4 pb-2">
+        <div className="space-y-3 max-w-4xl mx-auto">
+          {messages.map((message) => (
+            <motion.div
+              key={message.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div className={`flex items-start space-x-3 max-w-2xl ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  message.type === 'user' 
+                    ? 'bg-primary-500' 
+                    : 'bg-gradient-to-br from-purple-500 to-violet-500'
                 }`}>
-                  {message.timestamp.toLocaleTimeString()}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-        
-        {isLoading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex justify-start"
-          >
-            <div className="flex items-start space-x-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center">
-                <Bot className="w-4 h-4 text-white" />
-              </div>
-              <div className="chat-bubble chat-bubble-bot">
-                <div className="flex items-center space-x-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Thinking...</span>
+                  {message.type === 'user' ? (
+                    <User className="w-4 h-4 text-white" />
+                  ) : (
+                    <Bot className="w-4 h-4 text-white" />
+                  )}
+                </div>
+                
+                <div className={`chat-bubble ${
+                  message.type === 'user' ? 'chat-bubble-user' : 'chat-bubble-bot'
+                }`}>
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <p className={`text-xs mt-2 ${
+                    message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
+                  }`}>
+                    {message.timestamp.toLocaleTimeString()}
+                  </p>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        )}
-        
-        <div ref={messagesEndRef} />
+            </motion.div>
+          ))}
+          
+          {isLoading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex justify-start"
+            >
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div className="chat-bubble chat-bubble-bot">
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Thinking...</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+          
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      {/* Input */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-effect border-t border-white/20 p-4"
-      >
-        <form onSubmit={handleSubmit} className="flex space-x-4">
+      <div className="border-t border-gray-200 p-3 bg-white shadow-sm">
+        <form onSubmit={handleSubmit} className="flex space-x-3 max-w-4xl mx-auto">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
             disabled={isLoading}
           />
           <motion.button
@@ -188,7 +183,7 @@ const ChatbotPage = () => {
             <span>Send</span>
           </motion.button>
         </form>
-      </motion.div>
+      </div>
     </div>
   )
 }
