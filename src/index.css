@@ -31,4 +31,33 @@
   .chat-bubble-bot {
     @apply bg-white border border-gray-200 text-gray-800;
   }
+
+  .chat-bubble.streaming {
+    @apply border-green-200 bg-green-50/50;
+  }
+
+  .typing-indicator {
+    @apply flex space-x-1;
+  }
+
+  .typing-indicator span {
+    @apply w-2 h-2 bg-green-500 rounded-full animate-bounce;
+  }
+
+  .typing-indicator span:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+
+  .typing-indicator span:nth-child(3) {
+    animation-delay: 0.2s;
+  }
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
 }

@@ -1,4 +1,4 @@
- import React from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Play, Brain, ArrowRight, Zap, Target, BarChart3, Users, MessageSquare, TrendingUp, Search, Lightbulb, Rocket } from 'lucide-react'

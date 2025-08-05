@@ -9,6 +9,7 @@ const ChatbotPage = () => {
   const { sendMessage, isLoading, getWelcomeMessage } = useChatbot()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
+  const [streamingMessageId, setStreamingMessageId] = useState(null)
   const messagesEndRef = useRef(null)
 
   const chatbotNames = {
@@ -34,7 +35,8 @@ const ChatbotPage = () => {
       id: Date.now(),
       type: 'bot',
       content: `Hello! I'm ${chatbotNames[id]}. ${getWelcomeMessage(id)}`,
-      timestamp: new Date()
+      timestamp: new Date(),
+      isComplete: true
     }])
   }, [id, getWelcomeMessage])
 
@@ -46,38 +48,68 @@ const ChatbotPage = () => {
       id: Date.now(),
       type: 'user',
       content: input,
-      timestamp: new Date()
+      timestamp: new Date(),
+      isComplete: true
     }
 
     setMessages(prev => [...prev, userMessage])
     setInput('')
 
+    // Create initial bot message for streaming
+    const botMessageId = Date.now() + 1
+    const initialBotMessage = {
+      id: botMessageId,
+      type: 'bot',
+      content: '',
+      timestamp: new Date(),
+      isComplete: false,
+      isStreaming: true
+    }
+
+    setMessages(prev => [...prev, initialBotMessage])
+    setStreamingMessageId(botMessageId)
+
     try {
-      const response = await sendMessage(id, input)
-      const botMessage = {
-        id: Date.now() + 1,
-        type: 'bot',
-        content: response,
-        timestamp: new Date()
-      }
-      setMessages(prev => [...prev, botMessage])
+      const response = await sendMessage(
+        id, 
+        input, 
+        {}, // options
+        (chunk, fullResponse) => {
+          // Stream chunk callback
+          setMessages(prev => prev.map(msg => 
+            msg.id === botMessageId 
+              ? { ...msg, content: fullResponse, isStreaming: true }
+              : msg
+          ))
+        }
+      )
+
+      // Mark message as complete
+      setMessages(prev => prev.map(msg => 
+        msg.id === botMessageId 
+          ? { ...msg, content: response, isComplete: true, isStreaming: false }
+          : msg
+      ))
+
     } catch (error) {
-      const errorMessage = {
-        id: Date.now() + 1,
-        type: 'bot',
-        content: 'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date()
-      }
-      setMessages(prev => [...prev, errorMessage])
+      const errorMessage = 'Sorry, I encountered an error. Please try again.'
+      setMessages(prev => prev.map(msg => 
+        msg.id === botMessageId 
+          ? { ...msg, content: errorMessage, isComplete: true, isStreaming: false }
+          : msg
+      ))
+    } finally {
+      setStreamingMessageId(null)
     }
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-full flex flex-col">
+      {/* Header */}
       <motion.header 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-effect border-b border-white/20 p-4 z-10"
+        className="glass-effect border-b border-white/20 p-4 flex-shrink-0"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -102,7 +134,8 @@ const ChatbotPage = () => {
         </div>
       </motion.header>
 
-      <div className="flex-1 overflow-y-auto p-4 pb-2">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4" style={{ minHeight: 0 }}>
         <div className="space-y-3 max-w-4xl mx-auto">
           {messages.map((message) => (
             <motion.div
@@ -126,19 +159,33 @@ const ChatbotPage = () => {
                 
                 <div className={`chat-bubble ${
                   message.type === 'user' ? 'chat-bubble-user' : 'chat-bubble-bot'
-                }`}>
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                } ${message.isStreaming ? 'streaming' : ''}`}>
+                  <div className="flex items-start">
+                    <p className="whitespace-pre-wrap flex-1">{message.content}</p>
+                    {message.isStreaming && (
+                      <div className="ml-2 flex-shrink-0">
+                        <div className="typing-indicator">
+                          <span></span>
+                          <span></span>
+                          <span></span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <p className={`text-xs mt-2 ${
                     message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
                   }`}>
                     {message.timestamp.toLocaleTimeString()}
+                    {message.isStreaming && (
+                      <span className="ml-2 text-green-500">● Streaming</span>
+                    )}
                   </p>
                 </div>
               </div>
             </motion.div>
           ))}
           
-          {isLoading && (
+          {isLoading && !streamingMessageId && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -151,7 +198,7 @@ const ChatbotPage = () => {
                 <div className="chat-bubble chat-bubble-bot">
                   <div className="flex items-center space-x-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Thinking...</span>
+                    <span>Connecting...</span>
                   </div>
                 </div>
               </div>
@@ -162,7 +209,8 @@ const ChatbotPage = () => {
         </div>
       </div>
 
-      <div className="border-t border-gray-200 p-3 bg-white shadow-sm">
+      {/* Input Area */}
+      <div className="border-t border-gray-200 p-4 bg-white shadow-sm flex-shrink-0">
         <form onSubmit={handleSubmit} className="flex space-x-3 max-w-4xl mx-auto">
           <input
             type="text"

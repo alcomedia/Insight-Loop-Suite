@@ -12,8 +12,9 @@ export const useChatbot = () => {
 
 export const ChatbotProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false)
+  const [conversations, setConversations] = useState({})
 
-  // API configuration for each chatbot
+  // API configuration for each chatbot with Pickaxe-specific options
   const apiConfig = {
     1: {
       name: 'Persona Forge',
@@ -47,7 +48,19 @@ export const ChatbotProvider = ({ children }) => {
     }
   }
 
-  const sendMessage = async (chatbotId, message) => {
+  // Generate or get conversation ID for a chatbot
+  const getConversationId = (chatbotId, userId = null) => {
+    const key = `${chatbotId}_${userId || 'anonymous'}`
+    if (!conversations[key]) {
+      setConversations(prev => ({
+        ...prev,
+        [key]: `conv_${chatbotId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      }))
+    }
+    return conversations[key]
+  }
+
+  const sendMessage = async (chatbotId, message, options = {}, onStreamChunk = null) => {
     setIsLoading(true)
     
     try {
@@ -57,28 +70,130 @@ export const ChatbotProvider = ({ children }) => {
         throw new Error(`Chatbot ${chatbotId} not found`)
       }
 
+      // Extract Pickaxe-specific options with streaming enabled by default
+      const {
+        userId = null,
+        conversationId = null,
+        imageUrls = null,
+        stream = true, // Default to streaming
+        ...otherOptions
+      } = options
+
+      // Use provided conversationId or generate one
+      const finalConversationId = conversationId || getConversationId(chatbotId, userId)
+
+      // Build the request payload with Pickaxe-specific options
+      const requestBody = {
+        message: message,
+        // Pickaxe-specific options
+        ...(userId && { userId }),
+        ...(finalConversationId && { conversationId: finalConversationId }),
+        ...(imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0 && { imageUrls }),
+        stream: stream,
+        // Any additional options
+        ...otherOptions
+      }
+
+      // Remove null/undefined values to keep request clean
+      Object.keys(requestBody).forEach(key => {
+        if (requestBody[key] === null || requestBody[key] === undefined) {
+          delete requestBody[key]
+        }
+      })
+
+      console.log('Sending request to Pickaxe API:', {
+        url: "https://api.pickaxe.co/v1/completions",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${config.token}`
+        },
+        body: requestBody
+      })
+
       const response = await fetch("https://api.pickaxe.co/v1/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${config.token}`
         },
-        body: JSON.stringify({
-          "message": message
-        })
+        body: JSON.stringify(requestBody)
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        console.error('API Error Response:', errorText)
+        throw new Error(`HTTP error! status: ${response.status}, response: ${errorText}`)
       }
 
-      const data = await response.json()
-      
-      // Handle different possible response formats
-      return data.message || data.response || data.completion || data.text || 'I received your message and am processing it.'
+      // Handle streaming response
+      if (stream && response.body) {
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let fullResponse = ''
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            
+            if (done) break
+
+            const chunk = decoder.decode(value, { stream: true })
+            const lines = chunk.split('\n')
+
+            for (const line of lines) {
+              if (line.trim() === '') continue
+              
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                
+                if (data === '[DONE]') {
+                  return fullResponse
+                }
+
+                try {
+                  const parsed = JSON.parse(data)
+                  const content = parsed.choices?.[0]?.delta?.content || 
+                                parsed.message || 
+                                parsed.response || 
+                                parsed.text || ''
+                  
+                  if (content) {
+                    fullResponse += content
+                    if (onStreamChunk) {
+                      onStreamChunk(content, fullResponse)
+                    }
+                  }
+                } catch (parseError) {
+                  console.warn('Failed to parse streaming chunk:', data)
+                }
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock()
+        }
+
+        return fullResponse
+      } else {
+        // Handle non-streaming response
+        const data = await response.json()
+        console.log('API Response:', data)
+        
+        return data.message || data.response || data.completion || data.text || 'I received your message and am processing it.'
+      }
       
     } catch (error) {
       console.error('Error sending message:', error)
+      
+      // Enhanced error handling
+      if (error.message.includes('401')) {
+        console.error('Authentication error - check API token')
+      } else if (error.message.includes('429')) {
+        console.error('Rate limit exceeded - please wait before sending another message')
+      } else if (error.message.includes('500')) {
+        console.error('Server error - the API service may be temporarily unavailable')
+      }
       
       // Fallback to demo responses if API fails
       const fallbackResponses = {
@@ -101,11 +216,40 @@ export const ChatbotProvider = ({ children }) => {
     return config ? config.defaultMessage : 'Hello! How can I help you today?'
   }
 
+  // Helper function to send message with specific options
+  const sendMessageWithOptions = async (chatbotId, message, userId = null, conversationId = null, imageUrls = null, stream = true, onStreamChunk = null) => {
+    return sendMessage(chatbotId, message, {
+      userId,
+      conversationId,
+      imageUrls,
+      stream
+    }, onStreamChunk)
+  }
+
+  // Get conversation ID for a specific chatbot and user
+  const getChatbotConversationId = (chatbotId, userId = null) => {
+    return getConversationId(chatbotId, userId)
+  }
+
+  // Clear conversation for a specific chatbot and user
+  const clearConversation = (chatbotId, userId = null) => {
+    const key = `${chatbotId}_${userId || 'anonymous'}`
+    setConversations(prev => {
+      const newConversations = { ...prev }
+      delete newConversations[key]
+      return newConversations
+    })
+  }
+
   const value = {
     sendMessage,
+    sendMessageWithOptions,
     isLoading,
     apiConfig,
-    getWelcomeMessage
+    getWelcomeMessage,
+    getChatbotConversationId,
+    clearConversation,
+    conversations
   }
 
   return (
