@@ -13,6 +13,7 @@ export const useChatbot = () => {
 export const ChatbotProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false)
   const [conversations, setConversations] = useState({})
+  const [chatHistory, setChatHistory] = useState({}) // Store chat history per chatbot
 
   // API configuration for each chatbot with Pickaxe-specific options
   const apiConfig = {
@@ -58,6 +59,54 @@ export const ChatbotProvider = ({ children }) => {
       }))
     }
     return conversations[key]
+  }
+
+  // Get chat history for a specific chatbot
+  const getChatHistory = (chatbotId) => {
+    return chatHistory[chatbotId] || []
+  }
+
+  // Save chat history for a specific chatbot
+  const saveChatHistory = (chatbotId, messages) => {
+    setChatHistory(prev => ({
+      ...prev,
+      [chatbotId]: messages
+    }))
+  }
+
+  // Start a new chat for a specific chatbot
+  const startNewChat = (chatbotId) => {
+    console.log('=== STARTING NEW CHAT ===')
+    console.log('Chatbot ID:', chatbotId)
+    
+    // Clear the chat history for this chatbot
+    setChatHistory(prev => ({
+      ...prev,
+      [chatbotId]: []
+    }))
+    
+    // Clear the conversation ID to start fresh
+    const key = `${chatbotId}_anonymous`
+    setConversations(prev => {
+      const newConversations = { ...prev }
+      delete newConversations[key]
+      return newConversations
+    })
+    
+    console.log('Chat history cleared for chatbot', chatbotId)
+  }
+
+  // Get welcome message with history check
+  const getWelcomeMessageForChatbot = (chatbotId) => {
+    const config = apiConfig[chatbotId]
+    const history = getChatHistory(chatbotId)
+    
+    if (history.length > 0) {
+      // Return existing history instead of creating new welcome message
+      return null
+    }
+    
+    return config ? config.defaultMessage : 'Hello! How can I help you today?'
   }
 
   const sendMessage = async (chatbotId, message, options = {}) => {
@@ -271,7 +320,12 @@ export const ChatbotProvider = ({ children }) => {
     getWelcomeMessage,
     getChatbotConversationId,
     clearConversation,
-    conversations
+    conversations,
+    // New chat history functions
+    getChatHistory,
+    saveChatHistory,
+    startNewChat,
+    getWelcomeMessageForChatbot
   }
 
   return (

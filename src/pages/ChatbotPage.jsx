@@ -1,15 +1,24 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Send, ArrowLeft, Bot, User, Loader2 } from 'lucide-react'
+import { Send, ArrowLeft, Bot, User, Loader2, Plus, MessageSquare } from 'lucide-react'
 import { useChatbot } from '../context/ChatbotContext'
 
 const ChatbotPage = () => {
   const { id } = useParams()
-  const { sendMessage, isLoading, getWelcomeMessage } = useChatbot()
+  const { 
+    sendMessage, 
+    isLoading, 
+    getWelcomeMessage, 
+    getChatHistory, 
+    saveChatHistory, 
+    startNewChat,
+    getWelcomeMessageForChatbot 
+  } = useChatbot()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [isInitialized, setIsInitialized] = useState(false)
+  const [currentChatbotId, setCurrentChatbotId] = useState(null)
   const messagesEndRef = useRef(null)
 
   const chatbotNames = {
@@ -29,28 +38,73 @@ const ChatbotPage = () => {
     scrollToBottom()
   }, [messages, scrollToBottom])
 
-  // Initialize welcome message only once
+  // Save chat history whenever messages change
   useEffect(() => {
-    if (!isInitialized && id) {
-      console.log('=== INITIALIZING WELCOME MESSAGE ===')
-      console.log('Chatbot ID:', id)
+    if (currentChatbotId && messages.length > 0) {
+      saveChatHistory(currentChatbotId, messages)
+    }
+  }, [messages, currentChatbotId, saveChatHistory])
+
+  // Load or reset when chatbot ID changes
+  useEffect(() => {
+    const newChatbotId = parseInt(id)
+    
+    if (currentChatbotId !== newChatbotId) {
+      console.log('=== CHATBOT CHANGED ===')
+      console.log('Previous chatbot ID:', currentChatbotId)
+      console.log('New chatbot ID:', newChatbotId)
       
-      const welcomeMessage = {
-        id: `welcome-${id}-${Date.now()}`,
-        type: 'bot',
-        content: `Hello! I'm ${chatbotNames[id]}. ${getWelcomeMessage(id)}`,
-        timestamp: new Date()
+      // Save current chat history before switching
+      if (currentChatbotId && messages.length > 0) {
+        saveChatHistory(currentChatbotId, messages)
       }
       
-      console.log('Setting welcome message:', welcomeMessage)
-      setMessages([welcomeMessage])
+      // Load chat history for new chatbot
+      const existingHistory = getChatHistory(newChatbotId)
+      console.log('Existing history for chatbot', newChatbotId, ':', existingHistory.length, 'messages')
+      
+      if (existingHistory.length > 0) {
+        // Restore existing chat history
+        setMessages(existingHistory)
+        setIsInitialized(true)
+      } else {
+        // Start fresh
+        setMessages([])
+        setIsInitialized(false)
+      }
+      
+      setInput('')
+      setCurrentChatbotId(newChatbotId)
+    }
+  }, [id, currentChatbotId, messages, saveChatHistory, getChatHistory])
+
+  // Initialize welcome message only for new chats
+  useEffect(() => {
+    if (!isInitialized && currentChatbotId && chatbotNames[currentChatbotId]) {
+      const existingHistory = getChatHistory(currentChatbotId)
+      
+      if (existingHistory.length === 0) {
+        console.log('=== INITIALIZING WELCOME MESSAGE ===')
+        console.log('Chatbot ID:', currentChatbotId)
+        
+        const welcomeMessage = {
+          id: `welcome-${currentChatbotId}-${Date.now()}`,
+          type: 'bot',
+          content: `Hello! I'm ${chatbotNames[currentChatbotId]}. ${getWelcomeMessage(currentChatbotId)}`,
+          timestamp: new Date()
+        }
+        
+        console.log('Setting welcome message:', welcomeMessage)
+        setMessages([welcomeMessage])
+      }
+      
       setIsInitialized(true)
     }
-  }, [id, isInitialized, chatbotNames, getWelcomeMessage])
+  }, [currentChatbotId, isInitialized, chatbotNames, getWelcomeMessage, getChatHistory])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!input.trim() || isLoading) return
+    if (!input.trim() || isLoading || !currentChatbotId) return
 
     const userMessageContent = input.trim()
     const userMessageId = `user-${Date.now()}-${Math.random()}`
@@ -63,8 +117,7 @@ const ChatbotPage = () => {
 
     console.log('=== SUBMITTING MESSAGE ===')
     console.log('User input:', userMessageContent)
-    console.log('Chatbot ID:', id)
-    console.log('User message ID:', userMessageId)
+    console.log('Current Chatbot ID:', currentChatbotId)
 
     // Clear input immediately
     setInput('')
@@ -72,15 +125,13 @@ const ChatbotPage = () => {
     // Add user message
     setMessages(prevMessages => {
       const newMessages = [...prevMessages, userMessage]
-      console.log('Adding user message. Previous count:', prevMessages.length, 'New count:', newMessages.length)
-      console.log('Previous messages:', prevMessages.map(m => ({ id: m.id, type: m.type })))
-      console.log('New messages:', newMessages.map(m => ({ id: m.id, type: m.type })))
+      console.log('Adding user message. New count:', newMessages.length)
       return newMessages
     })
 
     try {
       console.log('Calling sendMessage...')
-      const response = await sendMessage(parseInt(id), userMessageContent, {})
+      const response = await sendMessage(currentChatbotId, userMessageContent, {})
       
       console.log('=== RECEIVED RESPONSE ===')
       console.log('Response:', response)
@@ -94,13 +145,9 @@ const ChatbotPage = () => {
           timestamp: new Date()
         }
 
-        console.log('Bot message ID:', botMessageId)
-        console.log('Adding bot message:', botMessage)
-
         setMessages(prevMessages => {
-          console.log('Adding bot response. Previous messages:', prevMessages.map(m => ({ id: m.id, type: m.type })))
           const newMessages = [...prevMessages, botMessage]
-          console.log('New messages after bot response:', newMessages.map(m => ({ id: m.id, type: m.type })))
+          console.log('New messages after bot response:', newMessages.length)
           return newMessages
         })
       } else {
@@ -128,23 +175,22 @@ const ChatbotPage = () => {
     }
   }
 
-  // Debug: Log messages array changes
-  useEffect(() => {
-    console.log('=== MESSAGES STATE CHANGED ===')
-    console.log('Total messages:', messages.length)
-    console.log('Is initialized:', isInitialized)
-    console.log('Current chatbot ID:', id)
-    messages.forEach((msg, index) => {
-      console.log(`Message ${index}:`, {
-        id: msg.id,
-        type: msg.type,
-        content: msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : ''),
-        timestamp: msg.timestamp.toLocaleTimeString()
-      })
-    })
-  }, [messages, isInitialized, id])
+  const handleNewChat = () => {
+    console.log('=== NEW CHAT REQUESTED ===')
+    console.log('Current chatbot ID:', currentChatbotId)
+    
+    // Start new chat in context
+    startNewChat(currentChatbotId)
+    
+    // Reset local state
+    setMessages([])
+    setInput('')
+    setIsInitialized(false)
+    
+    // This will trigger the welcome message useEffect
+  }
 
-  if (!isInitialized) {
+  if (!currentChatbotId || !chatbotNames[currentChatbotId]) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
@@ -159,6 +205,7 @@ const ChatbotPage = () => {
     <div className="h-full flex flex-col">
       {/* Header */}
       <motion.header 
+        key={`header-${currentChatbotId}`}
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="glass-effect border-b border-white/20 p-4 flex-shrink-0"
@@ -173,15 +220,26 @@ const ChatbotPage = () => {
             </Link>
             <div>
               <h1 className="text-2xl font-bold gradient-text">
-                {chatbotNames[id]}
+                {chatbotNames[currentChatbotId]}
               </h1>
-              <p className="text-sm text-gray-500">Chatbot {id} • {messages.length} messages</p>
+              <p className="text-sm text-gray-500">Chatbot {currentChatbotId} • {messages.length} messages</p>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-600">Online</span>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleNewChat}
+              className="flex items-center space-x-2 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors text-sm"
+              title="Start New Chat"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Chat</span>
+            </button>
+            
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm text-gray-600">Online</span>
+            </div>
           </div>
         </div>
       </motion.header>
@@ -189,13 +247,21 @@ const ChatbotPage = () => {
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4" style={{ minHeight: 0 }}>
         <div className="space-y-3 max-w-4xl mx-auto">
-          {messages.length === 0 && (
+          {messages.length === 0 && isInitialized && (
             <div className="text-center text-gray-500 py-8">
-              No messages yet. Start a conversation!
+              <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No messages yet. Start a conversation!</p>
             </div>
           )}
           
-          {messages.map((message, index) => (
+          {!isInitialized && (
+            <div className="text-center text-gray-500 py-8">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p>Loading conversation...</p>
+            </div>
+          )}
+          
+          {messages.map((message) => (
             <motion.div
               key={message.id}
               initial={{ opacity: 0, y: 10 }}
