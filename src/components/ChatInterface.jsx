@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Send, Bot, User, Loader2, CheckCircle } from 'lucide-react'
 import { useChatbot } from '../context/ChatbotContext'
@@ -8,7 +8,7 @@ const ChatInterface = ({ chatbotId, onComplete, isGuidedMode = false }) => {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [isCompleted, setIsCompleted] = useState(false)
-  const [streamingMessageId, setStreamingMessageId] = useState(null)
+  const [isInitialized, setIsInitialized] = useState(false)
   const messagesEndRef = useRef(null)
 
   const chatbotNames = {
@@ -20,89 +20,115 @@ const ChatInterface = ({ chatbotId, onComplete, isGuidedMode = false }) => {
     6: 'Launch Architect'
   }
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  }, [])
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, scrollToBottom])
 
+  // Initialize welcome message only once
   useEffect(() => {
-    // Welcome message using the actual chatbot's default message
-    const welcomeMessage = isGuidedMode 
-      ? `Welcome to ${chatbotNames[chatbotId]}! I'll help you with this step of your guided flow. ${getWelcomeMessage(chatbotId)}`
-      : `Hello! I'm ${chatbotNames[chatbotId]}. ${getWelcomeMessage(chatbotId)}`
-    
-    setMessages([{
-      id: Date.now(),
-      type: 'bot',
-      content: welcomeMessage,
-      timestamp: new Date(),
-      isComplete: true
-    }])
-  }, [chatbotId, isGuidedMode, getWelcomeMessage])
+    if (!isInitialized && chatbotId) {
+      console.log('=== INITIALIZING WELCOME MESSAGE (ChatInterface) ===')
+      console.log('Chatbot ID:', chatbotId)
+      console.log('Is Guided Mode:', isGuidedMode)
+      
+      const welcomeMessage = isGuidedMode 
+        ? `Welcome to ${chatbotNames[chatbotId]}! I'll help you with this step of your guided flow. ${getWelcomeMessage(chatbotId)}`
+        : `Hello! I'm ${chatbotNames[chatbotId]}. ${getWelcomeMessage(chatbotId)}`
+      
+      const welcomeMessageObj = {
+        id: `welcome-${chatbotId}-${Date.now()}`,
+        type: 'bot',
+        content: welcomeMessage,
+        timestamp: new Date()
+      }
+      
+      console.log('Setting welcome message:', welcomeMessageObj)
+      setMessages([welcomeMessageObj])
+      setIsInitialized(true)
+    }
+  }, [chatbotId, isGuidedMode, isInitialized, chatbotNames, getWelcomeMessage])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
 
+    const userMessageContent = input.trim()
+    const userMessageId = `user-${Date.now()}-${Math.random()}`
     const userMessage = {
-      id: Date.now(),
+      id: userMessageId,
       type: 'user',
-      content: input,
-      timestamp: new Date(),
-      isComplete: true
+      content: userMessageContent,
+      timestamp: new Date()
     }
 
-    setMessages(prev => [...prev, userMessage])
+    console.log('=== SUBMITTING MESSAGE (ChatInterface) ===')
+    console.log('User input:', userMessageContent)
+    console.log('Chatbot ID:', chatbotId)
+    console.log('User message ID:', userMessageId)
+
+    // Clear input immediately
     setInput('')
 
-    // Create initial bot message for streaming
-    const botMessageId = Date.now() + 1
-    const initialBotMessage = {
-      id: botMessageId,
-      type: 'bot',
-      content: '',
-      timestamp: new Date(),
-      isComplete: false,
-      isStreaming: true
-    }
-
-    setMessages(prev => [...prev, initialBotMessage])
-    setStreamingMessageId(botMessageId)
+    // Add user message
+    setMessages(prevMessages => {
+      const newMessages = [...prevMessages, userMessage]
+      console.log('Adding user message. Previous count:', prevMessages.length, 'New count:', newMessages.length)
+      console.log('Previous messages:', prevMessages.map(m => ({ id: m.id, type: m.type })))
+      console.log('New messages:', newMessages.map(m => ({ id: m.id, type: m.type })))
+      return newMessages
+    })
 
     try {
-      const response = await sendMessage(
-        chatbotId, 
-        input, 
-        {}, // options
-        (chunk, fullResponse) => {
-          // Stream chunk callback
-          setMessages(prev => prev.map(msg => 
-            msg.id === botMessageId 
-              ? { ...msg, content: fullResponse, isStreaming: true }
-              : msg
-          ))
-        }
-      )
+      console.log('Calling sendMessage...')
+      const response = await sendMessage(chatbotId, userMessageContent, {})
+      
+      console.log('=== RECEIVED RESPONSE (ChatInterface) ===')
+      console.log('Response:', response)
 
-      // Mark message as complete
-      setMessages(prev => prev.map(msg => 
-        msg.id === botMessageId 
-          ? { ...msg, content: response, isComplete: true, isStreaming: false }
-          : msg
-      ))
+      if (response && response.trim()) {
+        const botMessageId = `bot-${Date.now()}-${Math.random()}`
+        const botMessage = {
+          id: botMessageId,
+          type: 'bot',
+          content: response.trim(),
+          timestamp: new Date()
+        }
+
+        console.log('Bot message ID:', botMessageId)
+        console.log('Adding bot message:', botMessage)
+
+        setMessages(prevMessages => {
+          console.log('Adding bot response. Previous messages:', prevMessages.map(m => ({ id: m.id, type: m.type })))
+          const newMessages = [...prevMessages, botMessage]
+          console.log('New messages after bot response:', newMessages.map(m => ({ id: m.id, type: m.type })))
+          return newMessages
+        })
+      } else {
+        console.error('No valid response received from API')
+        const errorMessage = {
+          id: `error-${Date.now()}-${Math.random()}`,
+          type: 'bot',
+          content: 'I received your message but didn\'t get a proper response. Please try again.',
+          timestamp: new Date()
+        }
+        setMessages(prevMessages => [...prevMessages, errorMessage])
+      }
 
     } catch (error) {
-      const errorMessage = 'Sorry, I encountered an error. Please try again.'
-      setMessages(prev => prev.map(msg => 
-        msg.id === botMessageId 
-          ? { ...msg, content: errorMessage, isComplete: true, isStreaming: false }
-          : msg
-      ))
-    } finally {
-      setStreamingMessageId(null)
+      console.error('=== ERROR IN HANDLESUBMIT (ChatInterface) ===')
+      console.error('Error:', error)
+      
+      const errorMessage = {
+        id: `error-${Date.now()}-${Math.random()}`,
+        type: 'bot',
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date()
+      }
+      setMessages(prevMessages => [...prevMessages, errorMessage])
     }
   }
 
@@ -115,10 +141,43 @@ const ChatInterface = ({ chatbotId, onComplete, isGuidedMode = false }) => {
     }
   }
 
+  // Debug: Log messages array changes
+  useEffect(() => {
+    console.log('=== MESSAGES STATE CHANGED (ChatInterface) ===')
+    console.log('Total messages:', messages.length)
+    console.log('Is initialized:', isInitialized)
+    console.log('Current chatbot ID:', chatbotId)
+    messages.forEach((msg, index) => {
+      console.log(`Message ${index}:`, {
+        id: msg.id,
+        type: msg.type,
+        content: msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : ''),
+        timestamp: msg.timestamp.toLocaleTimeString()
+      })
+    })
+  }, [messages, isInitialized, chatbotId])
+
+  if (!isInitialized) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+          <p>Loading chatbot...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 overflow-y-auto p-4 pb-2">
         <div className="space-y-3 max-w-4xl mx-auto">
+          {messages.length === 0 && (
+            <div className="text-center text-gray-500 py-8">
+              No messages yet. Start a conversation!
+            </div>
+          )}
+          
           {messages.map((message) => (
             <motion.div
               key={message.id}
@@ -141,33 +200,19 @@ const ChatInterface = ({ chatbotId, onComplete, isGuidedMode = false }) => {
                 
                 <div className={`chat-bubble ${
                   message.type === 'user' ? 'chat-bubble-user' : 'chat-bubble-bot'
-                } ${message.isStreaming ? 'streaming' : ''}`}>
-                  <div className="flex items-start">
-                    <p className="whitespace-pre-wrap flex-1">{message.content}</p>
-                    {message.isStreaming && (
-                      <div className="ml-2 flex-shrink-0">
-                        <div className="typing-indicator">
-                          <span></span>
-                          <span></span>
-                          <span></span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                }`}>
+                  <p className="whitespace-pre-wrap">{message.content}</p>
                   <p className={`text-xs mt-2 ${
                     message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
                   }`}>
                     {message.timestamp.toLocaleTimeString()}
-                    {message.isStreaming && (
-                      <span className="ml-2 text-green-500">● Streaming</span>
-                    )}
                   </p>
                 </div>
               </div>
             </motion.div>
           ))}
           
-          {isLoading && !streamingMessageId && (
+          {isLoading && (
             <div className="flex justify-start">
               <div className="flex items-start space-x-3">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center">
@@ -176,7 +221,7 @@ const ChatInterface = ({ chatbotId, onComplete, isGuidedMode = false }) => {
                 <div className="chat-bubble chat-bubble-bot">
                   <div className="flex items-center space-x-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Connecting...</span>
+                    <span>Thinking...</span>
                   </div>
                 </div>
               </div>

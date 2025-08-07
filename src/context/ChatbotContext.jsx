@@ -60,7 +60,7 @@ export const ChatbotProvider = ({ children }) => {
     return conversations[key]
   }
 
-  const sendMessage = async (chatbotId, message, options = {}, onStreamChunk = null) => {
+  const sendMessage = async (chatbotId, message, options = {}) => {
     setIsLoading(true)
     
     try {
@@ -70,12 +70,12 @@ export const ChatbotProvider = ({ children }) => {
         throw new Error(`Chatbot ${chatbotId} not found`)
       }
 
-      // Extract Pickaxe-specific options with streaming enabled by default
+      // Extract Pickaxe-specific options - try both streaming and non-streaming
       const {
         userId = null,
         conversationId = null,
         imageUrls = null,
-        stream = true, // Default to streaming
+        stream = false, // Start with non-streaming to test
         ...otherOptions
       } = options
 
@@ -84,32 +84,30 @@ export const ChatbotProvider = ({ children }) => {
 
       // Build the request payload with Pickaxe-specific options
       const requestBody = {
-        message: message,
-        // Pickaxe-specific options
-        ...(userId && { userId }),
-        ...(finalConversationId && { conversationId: finalConversationId }),
-        ...(imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0 && { imageUrls }),
-        stream: stream,
-        // Any additional options
-        ...otherOptions
+        message: message
       }
 
-      // Remove null/undefined values to keep request clean
-      Object.keys(requestBody).forEach(key => {
-        if (requestBody[key] === null || requestBody[key] === undefined) {
-          delete requestBody[key]
+      // Only add optional fields if they have values
+      if (userId) requestBody.userId = userId
+      if (finalConversationId) requestBody.conversationId = finalConversationId
+      if (imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0) requestBody.imageUrls = imageUrls
+      if (typeof stream === 'boolean') requestBody.stream = stream
+
+      // Add any other options
+      Object.keys(otherOptions).forEach(key => {
+        if (otherOptions[key] !== null && otherOptions[key] !== undefined) {
+          requestBody[key] = otherOptions[key]
         }
       })
 
-      console.log('Sending request to Pickaxe API:', {
-        url: "https://api.pickaxe.co/v1/completions",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${config.token}`
-        },
-        body: requestBody
+      console.log('=== API REQUEST ===')
+      console.log('URL:', "https://api.pickaxe.co/v1/completions")
+      console.log('Method:', "POST")
+      console.log('Headers:', {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${config.token}`
       })
+      console.log('Body:', JSON.stringify(requestBody, null, 2))
 
       const response = await fetch("https://api.pickaxe.co/v1/completions", {
         method: "POST",
@@ -120,79 +118,103 @@ export const ChatbotProvider = ({ children }) => {
         body: JSON.stringify(requestBody)
       })
 
+      console.log('=== API RESPONSE ===')
+      console.log('Status:', response.status)
+      console.log('Status Text:', response.statusText)
+      console.log('Headers:', Object.fromEntries(response.headers.entries()))
+
       if (!response.ok) {
         const errorText = await response.text()
         console.error('API Error Response:', errorText)
         throw new Error(`HTTP error! status: ${response.status}, response: ${errorText}`)
       }
 
-      // Handle streaming response
-      if (stream && response.body) {
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let fullResponse = ''
+      // Get the response as text first to see raw format
+      const responseText = await response.text()
+      console.log('Raw Response Text:', responseText)
 
-        try {
-          while (true) {
-            const { done, value } = await reader.read()
-            
-            if (done) break
+      let data
+      try {
+        data = JSON.parse(responseText)
+        console.log('Parsed Response Data:', data)
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError)
+        console.log('Treating as plain text response')
+        return responseText || 'I received your message but had trouble parsing the response.'
+      }
 
-            const chunk = decoder.decode(value, { stream: true })
-            const lines = chunk.split('\n')
+      // Try multiple possible response field names
+      const possibleResponseFields = [
+        'message',
+        'response', 
+        'completion',
+        'text',
+        'content',
+        'answer',
+        'reply',
+        'output',
+        'result'
+      ]
 
-            for (const line of lines) {
-              if (line.trim() === '') continue
-              
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6)
-                
-                if (data === '[DONE]') {
-                  return fullResponse
-                }
-
-                try {
-                  const parsed = JSON.parse(data)
-                  const content = parsed.choices?.[0]?.delta?.content || 
-                                parsed.message || 
-                                parsed.response || 
-                                parsed.text || ''
-                  
-                  if (content) {
-                    fullResponse += content
-                    if (onStreamChunk) {
-                      onStreamChunk(content, fullResponse)
-                    }
-                  }
-                } catch (parseError) {
-                  console.warn('Failed to parse streaming chunk:', data)
-                }
-              }
-            }
-          }
-        } finally {
-          reader.releaseLock()
+      let responseContent = null
+      for (const field of possibleResponseFields) {
+        if (data[field] && typeof data[field] === 'string') {
+          responseContent = data[field]
+          console.log(`Found response in field: ${field}`)
+          break
         }
+      }
 
-        return fullResponse
-      } else {
-        // Handle non-streaming response
-        const data = await response.json()
-        console.log('API Response:', data)
+      // If no direct field found, check nested structures
+      if (!responseContent) {
+        // Check for choices array (OpenAI format)
+        if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
+          const choice = data.choices[0]
+          if (choice.message && choice.message.content) {
+            responseContent = choice.message.content
+            console.log('Found response in choices[0].message.content')
+          } else if (choice.text) {
+            responseContent = choice.text
+            console.log('Found response in choices[0].text')
+          }
+        }
         
-        return data.message || data.response || data.completion || data.text || 'I received your message and am processing it.'
+        // Check for data field
+        if (!responseContent && data.data) {
+          if (typeof data.data === 'string') {
+            responseContent = data.data
+            console.log('Found response in data field')
+          } else if (data.data.message) {
+            responseContent = data.data.message
+            console.log('Found response in data.message')
+          }
+        }
+      }
+
+      if (responseContent) {
+        console.log('Final extracted response:', responseContent)
+        return responseContent
+      } else {
+        console.warn('No response content found in any expected field')
+        console.log('Full response object:', JSON.stringify(data, null, 2))
+        return 'I received your message but the response format was unexpected. Please try again.'
       }
       
     } catch (error) {
+      console.error('=== ERROR ===')
       console.error('Error sending message:', error)
+      console.error('Error stack:', error.stack)
       
       // Enhanced error handling
       if (error.message.includes('401')) {
         console.error('Authentication error - check API token')
+        return 'Authentication error. Please check the API configuration.'
       } else if (error.message.includes('429')) {
         console.error('Rate limit exceeded - please wait before sending another message')
+        return 'Rate limit exceeded. Please wait a moment before sending another message.'
       } else if (error.message.includes('500')) {
         console.error('Server error - the API service may be temporarily unavailable')
+        return 'Server error. The API service may be temporarily unavailable.'
       }
       
       // Fallback to demo responses if API fails
@@ -217,13 +239,13 @@ export const ChatbotProvider = ({ children }) => {
   }
 
   // Helper function to send message with specific options
-  const sendMessageWithOptions = async (chatbotId, message, userId = null, conversationId = null, imageUrls = null, stream = true, onStreamChunk = null) => {
+  const sendMessageWithOptions = async (chatbotId, message, userId = null, conversationId = null, imageUrls = null, stream = false) => {
     return sendMessage(chatbotId, message, {
       userId,
       conversationId,
       imageUrls,
       stream
-    }, onStreamChunk)
+    })
   }
 
   // Get conversation ID for a specific chatbot and user
