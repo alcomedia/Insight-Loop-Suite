@@ -1,119 +1,110 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Play, Brain, ArrowRight, Zap, Target, BarChart3, Users, MessageSquare, TrendingUp, Search, Lightbulb, Rocket } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowRight, Users, TrendingUp, Target, Zap } from 'lucide-react'
+import { chatbots } from '../data/chatbots'
 
 const Dashboard = () => {
-  const chatbots = [
-    { id: 1, name: 'Persona Forge', description: 'Craft deeply human personas from real psychographics and market signals', icon: Users, color: 'from-blue-500 to-cyan-500' },
-    { id: 2, name: 'MessageCraft', description: 'Language that lands. Messaging that moves', icon: MessageSquare, color: 'from-green-500 to-emerald-500' },
-    { id: 3, name: 'Predyktable', description: 'Simulate Market Reactions to Any Scenario', icon: TrendingUp, color: 'from-purple-500 to-violet-500' },
-    { id: 4, name: 'Market Scanner', description: 'Stay ahead. See what\'s shifting', icon: Search, color: 'from-red-500 to-pink-500' },
-    { id: 5, name: 'Strategy Synthesis', description: 'From insights to impact — instantly', icon: Lightbulb, color: 'from-orange-500 to-amber-500' },
-    { id: 6, name: 'Launch Architect', description: 'Your all-in-one marketing execution engine', icon: Rocket, color: 'from-indigo-500 to-blue-500' },
+  const navigate = useNavigate()
+
+  const stats = [
+    { label: 'Active Chatbots', value: '6', icon: Users, color: 'text-blue-600' },
+    { label: 'Insights Generated', value: '1,247', icon: TrendingUp, color: 'text-green-600' },
+    { label: 'Business Areas', value: '6', icon: Target, color: 'text-purple-600' },
+    { label: 'AI Interactions', value: '8,932', icon: Zap, color: 'text-orange-600' }
   ]
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      {/* Hero Section */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-16"
-      >
-        <h1 className="text-5xl font-bold gradient-text mb-6">
-          Insight Loop Suite
-        </h1>
-        <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-          Transform your marketing intelligence with our suite of 6 specialized AI chatbots. 
-          Use them individually or follow our guided process for comprehensive market insights.
-        </p>
-        
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Link 
-            to="/guided-flow"
-            className="inline-flex items-center space-x-3 bg-gradient-to-r from-primary-500 to-accent-500 text-white px-8 py-4 rounded-2xl font-semibold text-lg shadow-xl hover:shadow-2xl transition-all"
-          >
-            <Play className="w-6 h-6" />
-            <span>Start Guided Flow</span>
-            <ArrowRight className="w-5 h-5" />
-          </Link>
-        </motion.div>
-      </motion.div>
-
-      {/* Chatbots Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {chatbots.map((chatbot, index) => (
-          <motion.div
-            key={chatbot.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            whileHover={{ y: -5 }}
-            className="glass-effect rounded-2xl p-6 hover:shadow-2xl transition-all cursor-pointer group"
-          >
-            <Link to={`/chatbot/${chatbot.id}`}>
-              <div className={`w-12 h-12 bg-gradient-to-br ${chatbot.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                <chatbot.icon className="w-6 h-6 text-white" />
+    <div className="p-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {stats.map((stat, index) => (
+          <div key={index} className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">{stat.label}</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stat.value}</p>
               </div>
-              
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                {chatbot.name}
-              </h3>
-              
-              <p className="text-gray-600 mb-4">
-                {chatbot.description}
-              </p>
-              
-              <div className="flex items-center text-primary-600 font-medium group-hover:text-primary-700">
-                <span>Launch Chatbot</span>
-                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+              <div className={`p-3 rounded-lg bg-gray-50`}>
+                <stat.icon size={24} className={stat.color} />
               </div>
-            </Link>
-          </motion.div>
+            </div>
+          </div>
         ))}
       </div>
 
-      {/* Features Section */}
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.8 }}
-        className="mt-16 glass-effect rounded-2xl p-8"
-      >
-        <h2 className="text-3xl font-bold text-center mb-8 gradient-text">
-          Why Choose Insight Loop Suite?
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Brain className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Specialized AI</h3>
-            <p className="text-gray-600">Each chatbot is fine-tuned for specific marketing intelligence tasks</p>
-          </div>
-          
-          <div className="text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-violet-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Play className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Guided Process</h3>
-            <p className="text-gray-600">Follow our structured approach for comprehensive marketing insights</p>
-          </div>
-          
-          <div className="text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Zap className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Flexible Usage</h3>
-            <p className="text-gray-600">Use individual chatbots or the complete suite based on your needs</p>
-          </div>
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-lg p-8 mb-8 text-white">
+        <h2 className="text-3xl font-bold mb-4">Welcome to Insight Loop Suite</h2>
+        <p className="text-primary-100 text-lg mb-6">
+          Your comprehensive AI-powered business intelligence platform. Access specialized chatbots 
+          for market research, customer insights, competitive analysis, and more.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <span className="px-3 py-1 bg-white/20 rounded-full text-sm">Market Research</span>
+          <span className="px-3 py-1 bg-white/20 rounded-full text-sm">Customer Analytics</span>
+          <span className="px-3 py-1 bg-white/20 rounded-full text-sm">Competitive Intelligence</span>
+          <span className="px-3 py-1 bg-white/20 rounded-full text-sm">Strategic Planning</span>
         </div>
-      </motion.div>
+      </div>
+
+      {/* Chatbots Grid */}
+      <div className="mb-8">
+        <h3 className="text-xl font-semibold text-gray-900 mb-6">Available AI Chatbots</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {chatbots.map((chatbot) => (
+            <div 
+              key={chatbot.id}
+              className="bg-white rounded-lg p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => navigate(`/chatbot/${chatbot.id}`)}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-12 h-12 ${chatbot.color} rounded-lg flex items-center justify-center`}>
+                  <div className="w-6 h-6 bg-white rounded opacity-80"></div>
+                </div>
+                <ArrowRight size={20} className="text-gray-400" />
+              </div>
+              
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">{chatbot.name}</h4>
+              <p className="text-gray-600 text-sm mb-4">{chatbot.description}</p>
+              
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Key Features</p>
+                <div className="flex flex-wrap gap-2">
+                  {chatbot.features.slice(0, 2).map((feature, index) => (
+                    <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                      {feature}
+                    </span>
+                  ))}
+                  {chatbot.features.length > 2 && (
+                    <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded">
+                      +{chatbot.features.length - 2} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            <h4 className="font-medium text-gray-900">Generate Report</h4>
+            <p className="text-sm text-gray-600 mt-1">Create comprehensive business insights report</p>
+          </button>
+          <button className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            <h4 className="font-medium text-gray-900">Schedule Analysis</h4>
+            <p className="text-sm text-gray-600 mt-1">Set up automated data analysis workflows</p>
+          </button>
+          <button className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            <h4 className="font-medium text-gray-900">Export Data</h4>
+            <p className="text-sm text-gray-600 mt-1">Download insights and analytics data</p>
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
